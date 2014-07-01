@@ -9,36 +9,64 @@ var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
 var Click = require('./app/models/click');
 
+var passport = require('passport');
+var GitHubStrategy = require('passport-github').Strategy;
+
+var GITHUB_CLIENT_ID = '16e23e4c9c161353acc8';
+var GITHUB_CLIENT_SECRET = 'e6c7c56a500f77582d5455d897969f4831db013b';
+
+
+passport.serializeUser(function(user, done) {
+  done(null, user);
+});
+
+passport.deserializeUser(function(user, done) {
+  // User.fetch({id: id}).then(function(user) {
+  // });
+  done(null, user);
+});
+
+passport.use(new GitHubStrategy({
+    clientID: GITHUB_CLIENT_ID,
+    clientSecret: GITHUB_CLIENT_SECRET,
+    callbackURL: 'http://127.0.0.1:3000/auth/github/callback'
+  },
+  function(accessToken, refreshToken, profile, done) {
+    // asynchronous verification, for effect...
+    process.nextTick(function () {
+
+      // To keep the example simple, the user's GitHub profile is returned to
+      // represent the logged-in user.  In a typical application, you would want
+      // to associate the GitHub account with a user record in your database,
+      // and return that user instead.
+
+      console.log(profile);
+      return done(null, profile);
+    });
+  }
+));
+
+
 var app = express();
 
 var checkUser = function(req, res, next) {
-  res.locals.loggedIn = false;
-  // if (req.cookies === undefined) {
-  //   res.redirect('/login');
-  // } else {
-  new User({ id: req.session.user_id }).fetch().then(function(user) {
-    if (user) {
-      if (user.checkToken(req.session.token)) {
-        res.locals.loggedIn = true;
-        next();
-      } else {
-        res.redirect('/login');
-      }
-    } else {
-      res.redirect('/login');
-    }
-  });
-  // }
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.redirect('/login');
 };
 
 app.configure(function() {
+  app.use(express.methodOverride());
   app.set('views', __dirname + '/views');
   app.set('view engine', 'ejs');
+  app.use(express.cookieParser());
   app.use(partials());
   app.use(express.bodyParser());
   app.use(express.static(__dirname + '/public'));
-  app.use(express.cookieParser('Greg and Alex rule!!!!'));
-  app.use(express.session());
+  app.use(express.session({secret: 'asdfghjkl'}));
+  app.use(passport.initialize());
+  app.use(passport.session());
 });
 
 app.get('/', checkUser, function(req, res) {
@@ -50,15 +78,6 @@ app.get('/create', checkUser, function(req, res) {
 });
 
 app.get('/links', checkUser, function(req, res) {
-  // new User({ id: req.cookies.user_id }).fetch({withRelated: ['links']}).then(function(user) {
-  //   if (user) {
-  //     console.log(user.related('link'));//links().models);
-  //     res.send(200, user.links().models);
-  //   } else {
-  //     //should never get here
-  //     res.redirect('/');
-  //   }
-  // });
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
   });
@@ -101,74 +120,29 @@ app.post('/links', checkUser, function(req, res) {
 // Write your authentication routes here
 /************************************************************/
 
+app.get('/auth/github', passport.authenticate('github'), function(req, res){
+  // The request will be redirected to GitHub for authentication, so this
+  // function will not be called.
+  console.log('shouldnt be here');
+});
+
+// GET /auth/github/callback
+//   Use passport.authenticate() as route middleware to authenticate the
+//   request.  If authentication fails, the user will be redirected back to the
+//   login page.  Otherwise, the primary route function function will be called,
+//   which, in this example, will redirect the user to the home page.
+app.get('/auth/github/callback', passport.authenticate('github', { failureRedirect: '/login' }), function(req, res) {
+  console.log('here');
+  res.redirect('/');
+});
+
+app.get('/logout', function(req, res){
+  req.logout();
+  res.redirect('/');
+});
+
 app.get('/login', function(req, res) {
   res.render('login');
-});
-
-app.post('/login', function(req, res) {
-  var username = req.body.username;
-  new User({name: username}).fetch().then(function(user) {
-    if (user) {
-      user.login(req.body.password, function(err, token) {
-        if (err) {
-          res.render('login', {
-            messages: 'Invalid username/password combination'
-          });
-        } else {
-          user.save().then(function(newUser) {
-            req.session.token = newUser.get('token');
-            req.session.user_id = newUser.get('id');
-            res.redirect('/');
-          });
-        }
-      });
-    } else {
-      res.render('login', {
-        messages: 'Invalid username/password combination'
-      });
-    }
-  });
-});
-
-app.get('/logout', function(req, res) {
-  req.session.destroy(function () {
-    res.redirect('/login');
-  });
-});
-
-app.get('/signup', function(req, res) {
-  res.render('signup');
-});
-
-app.post('/signup', function(req, res) {
-  new User({name: req.body.username}).fetch().then(function(found) {
-    if (found) {
-      res.render('signup', {
-        messages: 'User already exists!'
-      });
-    } else {
-      util.hasValidUserCredentials(req, function(err) {
-        if (err) {
-          res.render('signup', {
-            messages: err.message
-          });
-        } else {
-          var user = new User({
-            name: req.body.username,
-            password: req.body.password
-          });
-          user.createToken(function() {
-            user.save().then(function(newUser) {
-              Users.add(newUser);
-              req.session.token = newUser.get('token');
-              req.session.user_id = newUser.get('id');
-              res.redirect('/');
-            });
-          });
-        }
-      });
-    }
-  });
 });
 
 /************************************************************/
