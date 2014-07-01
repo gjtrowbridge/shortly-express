@@ -49,9 +49,17 @@ app.get('/create', checkUser, function(req, res) {
 });
 
 app.get('/links', checkUser, function(req, res) {
-  Links.reset().fetch().then(function(links) {
-    res.send(200, links.models);
+  new User({ id: req.cookies.user_id }).fetch().then(function(user) {
+    if (user) {
+      res.send(200, user.links().models);
+    } else {
+      //should never get here
+      res.redirect('/');
+    }
   });
+  // Links.reset().fetch().then(function(links) {
+  //   res.send(200, links.models);
+  // });
 });
 
 app.post('/links', checkUser, function(req, res) {
