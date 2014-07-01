@@ -11,29 +11,50 @@ var Click = require('./app/models/click');
 
 var app = express();
 
+var checkUser = function(req, res, next) {
+  if (req.cookies === undefined) {
+    res.redirect('/login');
+  } else {
+    console.log('COOOOKIIIES!');
+    console.log(req.cookies);
+    new User({ id: req.cookies.user_id }).fetch().then(function(user) {
+      if (user) {
+        if (user.checkToken(req.cookies.token)) {
+          next();
+        } else {
+          res.redirect('/login');
+        }
+      } else {
+        res.redirect('/login');
+      }
+    });
+  }
+};
+
 app.configure(function() {
   app.set('views', __dirname + '/views');
   app.set('view engine', 'ejs');
   app.use(partials());
-  app.use(express.bodyParser())
+  app.use(express.bodyParser());
   app.use(express.static(__dirname + '/public'));
+  app.use(express.cookieParser());
 });
 
-app.get('/', function(req, res) {
+app.get('/', checkUser, function(req, res) {
   res.render('index');
 });
 
-app.get('/create', function(req, res) {
+app.get('/create', checkUser, function(req, res) {
   res.render('index');
 });
 
-app.get('/links', function(req, res) {
+app.get('/links', checkUser, function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
-  })
+  });
 });
 
-app.post('/links', function(req, res) {
+app.post('/links', checkUser, function(req, res) {
   var uri = req.body.url;
 
   if (!util.isValidUrl(uri)) {
@@ -70,7 +91,76 @@ app.post('/links', function(req, res) {
 // Write your authentication routes here
 /************************************************************/
 
+app.get('/login', function(req, res) {
+  res.render('login');
+});
 
+app.post('/login', function(req, res) {
+  var username = req.body.username;
+  new User({name: username}).fetch().then(function(user) {
+    if (user) {
+      user.login(req.body.password, function(err, token) {
+        if (err) {
+          res.render('login', {
+            messages: 'Invalid username/password combination'
+          });
+        } else {
+          user.save().then(function(newUser) {
+            console.log(newUser);
+            res.cookie('token', newUser.get('token'));
+            res.cookie('user_id', newUser.get('id'));
+            res.redirect('/');
+          });
+        }
+      });
+    } else {
+      res.render('login', {
+        messages: 'Invalid username/password combination'
+      });
+    }
+  });
+});
+
+app.get('/logout', function(req, res) {
+  res.clearCookie('user_id');
+  res.clearCookie('token');
+  res.redirect('/login');
+});
+
+app.get('/signup', function(req, res) {
+  res.render('signup');
+});
+
+app.post('/signup', function(req, res) {
+  new User({name: req.body.name}).fetch().then(function(found) {
+    if (found) {
+      res.render('signup', {
+        messages: 'User already exists!'
+      });
+    } else {
+      util.hasValidUserCredentials(req, function(err) {
+        if (err) {
+          res.render('signup', {
+            messages: err.message
+          });
+        } else {
+          var user = new User({
+            name: req.body.username,
+            password: req.body.password
+          });
+          user.createToken(function() {
+            user.save().then(function(newUser) {
+              Users.add(newUser);
+              res.cookie('token', newUser.get('token'));
+              res.cookie('user_id', newUser.get('id'));
+              res.redirect('/');
+            });
+          });
+        }
+      });
+    }
+  });
+});
 
 /************************************************************/
 // Handle the wildcard route last - if all other routes fail
@@ -88,7 +178,7 @@ app.get('/*', function(req, res) {
       });
 
       click.save().then(function() {
-        db.knex('urls')
+        db.knex('links')
           .where('code', '=', link.get('code'))
           .update({
             visits: link.get('visits') + 1,
@@ -99,6 +189,9 @@ app.get('/*', function(req, res) {
     }
   });
 });
+
+
+
 
 console.log('Shortly is listening on 4568');
 app.listen(4568);
