@@ -16,9 +16,9 @@ var checkUser = function(req, res, next) {
   // if (req.cookies === undefined) {
   //   res.redirect('/login');
   // } else {
-  new User({ id: req.cookies.user_id }).fetch().then(function(user) {
+  new User({ id: req.session.user_id }).fetch().then(function(user) {
     if (user) {
-      if (user.checkToken(req.cookies.token)) {
+      if (user.checkToken(req.session.token)) {
         res.locals.loggedIn = true;
         next();
       } else {
@@ -37,7 +37,8 @@ app.configure(function() {
   app.use(partials());
   app.use(express.bodyParser());
   app.use(express.static(__dirname + '/public'));
-  app.use(express.cookieParser());
+  app.use(express.cookieParser('Greg and Alex rule!!!!'));
+  app.use(express.session());
 });
 
 app.get('/', checkUser, function(req, res) {
@@ -115,9 +116,8 @@ app.post('/login', function(req, res) {
           });
         } else {
           user.save().then(function(newUser) {
-            console.log(newUser);
-            res.cookie('token', newUser.get('token'));
-            res.cookie('user_id', newUser.get('id'));
+            req.session.token = newUser.get('token');
+            req.session.user_id = newUser.get('id');
             res.redirect('/');
           });
         }
@@ -131,9 +131,9 @@ app.post('/login', function(req, res) {
 });
 
 app.get('/logout', function(req, res) {
-  res.clearCookie('user_id');
-  res.clearCookie('token');
-  res.redirect('/login');
+  req.session.destroy(function () {
+    res.redirect('/login');
+  });
 });
 
 app.get('/signup', function(req, res) {
@@ -141,7 +141,7 @@ app.get('/signup', function(req, res) {
 });
 
 app.post('/signup', function(req, res) {
-  new User({name: req.body.name}).fetch().then(function(found) {
+  new User({name: req.body.username}).fetch().then(function(found) {
     if (found) {
       res.render('signup', {
         messages: 'User already exists!'
@@ -160,8 +160,8 @@ app.post('/signup', function(req, res) {
           user.createToken(function() {
             user.save().then(function(newUser) {
               Users.add(newUser);
-              res.cookie('token', newUser.get('token'));
-              res.cookie('user_id', newUser.get('id'));
+              req.session.token = newUser.get('token');
+              req.session.user_id = newUser.get('id');
               res.redirect('/');
             });
           });
