@@ -15,6 +15,9 @@
 
   <body>
     <h1>Shortly</h1>
+    <% if (locals.loggedIn) { %>
+      <a href='/logout'>Logout</a>
+    <% } %>
     <%- locals.messages %>
     <%- body %>
   </body>

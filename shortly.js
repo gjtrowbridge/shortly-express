@@ -12,23 +12,23 @@ var Click = require('./app/models/click');
 var app = express();
 
 var checkUser = function(req, res, next) {
-  if (req.cookies === undefined) {
-    res.redirect('/login');
-  } else {
-    console.log('COOOOKIIIES!');
-    console.log(req.cookies);
-    new User({ id: req.cookies.user_id }).fetch().then(function(user) {
-      if (user) {
-        if (user.checkToken(req.cookies.token)) {
-          next();
-        } else {
-          res.redirect('/login');
-        }
+  res.locals.loggedIn = false;
+  // if (req.cookies === undefined) {
+  //   res.redirect('/login');
+  // } else {
+  new User({ id: req.cookies.user_id }).fetch().then(function(user) {
+    if (user) {
+      if (user.checkToken(req.cookies.token)) {
+        res.locals.loggedIn = true;
+        next();
       } else {
         res.redirect('/login');
       }
-    });
-  }
+    } else {
+      res.redirect('/login');
+    }
+  });
+  // }
 };
 
 app.configure(function() {
@@ -49,17 +49,18 @@ app.get('/create', checkUser, function(req, res) {
 });
 
 app.get('/links', checkUser, function(req, res) {
-  new User({ id: req.cookies.user_id }).fetch().then(function(user) {
-    if (user) {
-      res.send(200, user.links().models);
-    } else {
-      //should never get here
-      res.redirect('/');
-    }
-  });
-  // Links.reset().fetch().then(function(links) {
-  //   res.send(200, links.models);
+  // new User({ id: req.cookies.user_id }).fetch({withRelated: ['links']}).then(function(user) {
+  //   if (user) {
+  //     console.log(user.related('link'));//links().models);
+  //     res.send(200, user.links().models);
+  //   } else {
+  //     //should never get here
+  //     res.redirect('/');
+  //   }
   // });
+  Links.reset().fetch().then(function(links) {
+    res.send(200, links.models);
+  });
 });
 
 app.post('/links', checkUser, function(req, res) {
