@@ -14,11 +14,9 @@ var User = db.Model.extend({
     this.on('creating', function(model, attrs, options){
       model.saltAndHashPassword(model);
     });
-    // this.on('created')
   },
   saltAndHashPassword: function(model) {
     var pass = model.get('password');
-    // var salt = (new Date()).toString() + Math.random().toString() + model.get('name');
     var salt = bcrypt.genSaltSync();
     model.set('salt', salt);
     var hash = bcrypt.hashSync(pass, salt);
@@ -43,7 +41,6 @@ var User = db.Model.extend({
   },
   checkToken: function(token) {
     return token === this.get('token');
-    //check expiration
   }
 });
 
